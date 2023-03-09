@@ -1,0 +1,171 @@
+---
+title: "Homework 2 - Tidy data"
+format: 
+  html:
+    self-contained: true
+author:
+- teammate 1 Darshan, Medhavi
+- teammate 2 Fang, Ruisi
+- teammate 3 Zhu, Zihan
+---
+
+## Setup - Load packages
+
+```{r setup, include = FALSE}
+library(tidyverse)
+```
+
+## Task 1 - Bayesian posterior samples
+
+```{r load_schools}
+schools = readRDS("data/8schools.rds")
+```
+
+### Question 1
+
+<!--
+1. We have claimed that is a tidy representation of these data, explain why this is the case. Your answer should touch on the unit of observation and why this might be preferred to a wide representation (where the parameters are stored as columns within the data frame).
+-->
+
+A tidy dataset has a single column for each variable. In the `schools` dataset, each data point represents the value of a particular `parameter` with a particular `draw` within a particular `iteration` in a particular `chain` with a particular `i`. So our variables are chain, iteration, draw, parameter, and the dataset is tidy.
+
+A wide dataset spreads a variable across several columns. But in the `schools` dataset, every column represents a variable. Thus, the dataset is more of tidy data than wide data.
+
+### Question 2
+<!--
+2. Report a standard five number summary of the posterior of the overall mean effect ($\mu$) for the schools for each chain.
+-->
+```{r task1_q2}
+mu = schools %>% 
+  group_by(.chain) %>% 
+  filter(.variable == "mu") %>% 
+  summarize(
+    minimum = min(.value), 
+    first_quantile = quantile(.value, .25), 
+    median = median(.value), 
+    third_quantile = quantile(.value, .75), 
+    maximum = max(.value))
+mu
+```
+
+### Question 3
+
+<!--
+3. Report the mean and standard deviation of the posterior means of the individual school effects ($\eta_i$s) for each chain.
+-->
+
+```{r task1_q3}
+eta = schools %>% filter(.variable == "eta") %>% group_by(i, .chain) %>% summarise(mean = mean(.value), sd = sd(.value))
+eta
+```
+
+### Question 4
+
+<!--
+4. Given the posterior samples we can ask more complex questions, for example for each iteration which school had the most successful coaching program by comparing the values of $\theta_i$ for that iteration (and chain). Of the 1000 posterior draws calculate the percentage of the iterations where each school had the largest $\theta$ for each chain.
+-->
+
+```{r task1_q4}
+theta = schools %>% filter(.variable == "theta") %>% group_by(.chain, .iteration) %>% top_n(1, .value) %>% arrange(.chain, .iteration)
+each_school = theta %>% group_by(i) %>% summarize(n=n()) %>% mutate(percentage = n/sum(n))
+each_school
+```
+  summarize(max_theta = max(.value, na.rm = TRUE), 
+
+## Task 2 - Lego Sales Data
+
+```{r load_sales, message = FALSE}
+sales = readRDS("data/lego_sales.rds")
+```
+
+### Tidying the data
+
+<!-- 
+Include a brief write up describing the important features of the data
+and how you organized and restructured it to form your final "tidy" data set.
+-->
+
+The data is a list consisting of 250 lists, each list represents an individuals and includes 7 lists (7 characteristics), and the 7th characteristic is `purchases`, which is also a list. First, we constructed a tibble with a single column consisting of 250 customers, then we use the function `unnest_wider` to take each of 7 characteristics of each customer to make a new column. Then we used `unnest_longer` to make the data longer and each row represents a single hobby. We do the similar steps with column purchases: first `unnest_longer` to let each row represents a purchase then `unnest_wider` to let each column represents a characteristic of the purchase.
+
+```{r task2_tidy}
+# Covert the `sales` object into a tidy data frame. 
+sales_tibble = tibble(sale = sales)
+sales_tibble = sales_tibble %>% unnest_wider(sale) 
+sales_purchase = sales_tibble %>% unnest_longer(purchases) %>% unnest_wider(purchases)
+tidy <- sales_purchase %>% unnest_longer(hobbies)
+```
+
+
+```{r task2_top}
+# Print out the first 10 lines of your tidy data frame
+head(tidy, 10)
+```
+
+### Question 1
+
+<!--
+1. What are the three most common first names of purchasers?
+-->
+
+The 3 most common first names of purchasers are Jacob, Michael, and Amanda.
+
+```{r task2_q1}
+sales_tibble %>% group_by(first_name) %>% count() %>% arrange(desc(n)) %>% head(3)
+```
+
+### Question 2
+
+<!--
+2. Which Lego theme has made the most money for Lego?
+-->
+
+The Lego theme "Star Wars" has made the most money for Lego, 6852.18 dollars.
+
+```{r task2_q2}
+tidy %>% group_by(Theme) %>% summarize(money = sum(USPrice*Quantity)) %>% arrange(desc(money)) %>% head(1)
+```
+
+
+### Question 3
+
+<!--
+3. Do men or women buy more Lego sets (per person) on average?
+-->
+
+Women buy more Lego sets per person on average. Based on my calculation, men buy 3.558333 lego sets per person and women buy 3.569231 lego sets per person.
+
+```{r task2_q3}
+df_p = sales_purchase %>% mutate(id = paste(first_name, last_name, phone_number, sep = " "))
+men = df_p %>% group_by(id) %>% filter(gender == "Male") %>% summarize(total = sum(Quantity))
+average_men = men %>% summarize(avg = sum(total)/n())
+average_men
+women = df_p %>% group_by(id) %>% filter(gender == "Female") %>% summarize(total = sum(Quantity)) 
+average_women = women %>% summarize(avg = sum(total)/n())
+average_women
+
+```
+
+### Question 4
+
+<!--
+4. What are the five most popular hobbies of Lego purchasers?
+-->
+
+The five most popular hobbies of Lego purchasers are Animal fancy, Skateboarding, Kitesurfing, Sculling or Rowing, and Baseball.
+
+```{r task2_q4}
+sales_tibble %>% unnest_longer(hobbies) %>% group_by(hobbies) %>% filter(!is.na(hobbies)) %>% summarize(n = n()) %>% arrange(desc(n)) %>% head(5) 
+```
+
+### Question 5
+
+<!--
+5. Which area code has spent the most money on Legos? (In the US the area code is the first 3 digits of a phone number)
+-->
+
+The area code `956` has spent the most money on Legos.
+
+```{r task2_q5}
+tidy %>% filter(!is.na(phone_number)) %>% select(phone_number, USPrice) %>% mutate(area_code = substring(phone_number, 1, 3)) %>% group_by(area_code) %>% summarize(money = sum(USPrice)) %>% arrange(desc(money)) %>% head(1)
+```
+

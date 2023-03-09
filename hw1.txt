@@ -1,0 +1,290 @@
+---
+title: "Homework 1"
+format: 
+  html:
+    self-contained: true
+author: 
+- Du, Chenyang
+- Fang, Ruisi
+- Jiang, Zhiyuan
+- Yang, Jerry
+---
+
+## Task 1 - Implement fizzbuzz
+
+### Write up
+
+<!-- 
+In this section include your write up for this task - do not include it within these html comment tags. 
+
+The write up must appear in the rendered document.
+-->
+
+First of all, we create a empty vector called `output` to store the results we want the function to return.
+
+As part of the requirement, we use a for-loop to handle the task.
+The input for the `fizzbuzz()` function is a vector, so we use the for-loop to go through every elements of the vector.
+In order to prevent any unexpected scenarios, we use a simple if statement to examine every element and generate warning message if the element is not supported by our function, in other word, if the element is not a integer.s
+Because every integer should have modulo with 1 yield 0, we use statement `x%%0 != 0` to exclude the double values with number after the digit is not 0.
+
+After exclude all undesired situation, we use a if-else if statement to finish the task.
+To figure out which number is the multiple of five and which is the multiple of three, we take the modulo of each valid input of 3, 5 or both 3 and 5, and append the corresponding string into the `output` vector.
+
+With every values examined, we finally return the `output` vector as the result.
+
+
+### Function
+
+```{r fizzbuzz}
+fizzbuzz = function(input) {
+  output = c()
+  
+  if (length(input) == 0){ # Stop if input is empty
+    stop('Input is empty')
+  }
+  
+  for (i in input) {
+    
+    #Control flow to exclude invalid input
+    
+    if (is.nan(i)){ # Stop if input is not a number
+      stop('Input is not a number')  # error message
+      }
+    
+    if(i < 0) { # Stop if input is negative
+      stop('Input is less than 0') # error message
+    }
+    
+    if(is.character(i)){ # Stop if input is a character
+      stop('Input must not be character') # error message
+    }
+    
+    if (!is.finite(i)){ # Stop if input is infinite
+      stop('Input is not finite') # error message
+    }
+    
+    
+    if (is.complex(i)){ # Stop if input is a complex number
+      stop('Input is not a real integer') # error message
+    }
+    
+    if (!is.numeric(i)) { # Stop if input is not numeric
+      stop('Input is not numeric') # error message
+    }
+    
+    if (i %% 1 != 0) { # Stop if input is not coercible to integer
+      stop('Input is not an integer nor coercible to integer') # error message
+  
+  }
+    
+    
+    #Working code
+    if(i %% 3  == 0 & i %% 5 == 0) { # multiples of both 3 and 5 replaced by "FizzBuzz"
+      output = c(output, "FizzBuzz")
+    }
+    else if (i %% 3 == 0) { # multiples of 3 replaced by "Fizz"
+      output = c(output, "Fizz")
+    }
+    else if (i %% 5 == 0) { # multiples of 5 replaced by "Buzz"
+      output = c(output, "Buzz")
+    }
+    else{
+      output = c(output, i)
+    }
+    
+  }
+  return(as.character(output))
+}
+```
+
+### Testing
+
+#### Valid Inputs
+
+```{r good_inputs, error = TRUE}
+stopifnot( fizzbuzz(1)  == "1"       )
+stopifnot( fizzbuzz(3)  == "Fizz"    )
+stopifnot( fizzbuzz(5)  == "Buzz"    )
+stopifnot( fizzbuzz(15) == "FizzBuzz")
+stopifnot(all( fizzbuzz(1:5) == c("1", "2", "Fizz", "4", "Buzz") ))
+
+stopifnot(all( fizzbuzz(9:15) == c("Fizz", "Buzz", "11", "Fizz", "13", "14", "FizzBuzz") ))
+stopifnot(all( fizzbuzz(15:9) == c("FizzBuzz", "14", "13", "Fizz", "11", "Buzz", "Fizz") ))
+
+#New test case for valid input
+stopifnot(all( fizzbuzz(5:12) == c("Buzz", "Fizz", "7", "8", "Fizz", "Buzz", "11", "Fizz")))
+```
+
+
+#### Bad Inputs
+
+```{r throws_error}
+# Testing helper function, returns TRUE if expr throws an error FALSE otherwise.
+throws_error = function(expr) {
+  inherits(try(expr, silent = TRUE), "try-error")
+}
+```
+
+```{r bad_inputs, error = TRUE}
+stopifnot(throws_error( fizzbuzz(-1) ))
+stopifnot(throws_error( fizzbuzz(-3) ))
+stopifnot(throws_error( fizzbuzz(-5) ))
+
+stopifnot(throws_error( fizzbuzz(TRUE) ))
+stopifnot(throws_error( fizzbuzz(FALSE) ))
+
+stopifnot(throws_error( fizzbuzz(Inf) ))
+stopifnot(throws_error( fizzbuzz(-Inf) ))
+stopifnot(throws_error( fizzbuzz(NaN) ))
+
+stopifnot(throws_error( fizzbuzz("A") ))
+stopifnot(throws_error( fizzbuzz(1.5) ))
+stopifnot(throws_error( fizzbuzz(1i) ))
+stopifnot(throws_error( fizzbuzz(4i) ))
+
+stopifnot(throws_error( fizzbuzz(-3i))) #New test case for complex number.
+stopifnot(throws_error( fizzbuzz(c()))) #New test case for empty input
+```
+
+
+
+## Task 2 - Re-Implement fizzbuzz
+
+### Write up
+
+<!-- 
+In this section include your write up for this task - do not include it within theses html comment tags.
+
+The write up must appear in the rendered document.
+-->
+
+In this implementation, we first define a new S3 Generic called `fizzHelper` to do the hard work behind the curtain.
+
+By categorizing the classes of input and writing the default function, we limit the input to be numeric and give appropriate messages if the input is not.
+
+To figure out which number is the multiple of five and which is the multiple of three, we take the modulo of each valid input of 3, 5 or both 3 and 5, and append the corresponding string into the `output` vector.
+
+we use the `lapply()` function to avoid using `for-loop` in the code.
+The `fizzbuzz_s3()` function will call the `fizzHelper()` function and the `lapply()` function to satisfy the requirement of the task.
+
+
+### Function
+
+```{r fizzbuzz_s3}
+
+##The helper function in S3 way
+fizzHelper <- function(input){
+  UseMethod("fizzHelper")  
+}
+
+## default function
+
+fizzHelper.default = function(input){
+  stop("Class ", class(input), " is not supported by fizzHelper.\n", call. = FALSE)
+}
+
+
+## The helper function dealing with numeric input
+fizzHelper.numeric <- function(input){
+  
+  if (is.nan(input)){ # All input values must be a number
+      stop('Input is not a number') # error message
+    }
+  
+  if(input<0){ # All input values must be non-negative
+    stop("The input must be non-negative.") # error message
+  }
+  
+  if (!is.finite(input)){ # All input values must be finite
+    stop('Input is not finite') # error message
+  }
+  
+  if(input %% 1 != 0){ # All input values must be integer or coercible to integer
+    stop('Input is not a integer nor coercible to integer') # error message
+  }
+
+  
+  if(input %% 3 == 0 & input %% 5 == 0){ # multiples of both 3 and 5 replaced by "FizzBuzz"
+    return("FizzBuzz")
+  } 
+  else if(input %% 3 == 0 ){ # multiples of 3 replaced by "Fizz"
+    return("Fizz")
+  }
+  else if(input %% 5 == 0){ # multiples of 5 replaced by "Buzz"
+    return("Buzz")
+  }
+  else{
+    return(input)
+  }
+}
+
+fizzHelper.character <- function(input){
+  stop("Input must be numeric.")
+}
+
+fizzHelper.complex <- function(input){
+  stop("Input must not be complex number, please enter an integer.")
+}
+
+fizzHelper.logical <- function(input){
+  stop("Input must not be logical value, please enter an integer.")
+}
+
+
+## Use lapply function to avoid using for-loop
+fizzbuzz_s3 <- function(input){
+  
+  if(length(input) == 0){
+    stop("Input is empty, please enter a valid input.")
+  }
+  
+  output <- unlist(lapply(input, fizzHelper))
+  return(as.character(output))
+}
+
+```
+
+
+### Testing
+
+#### Valid Inputs
+
+```{r good_inputs_s3, error = TRUE}
+stopifnot( fizzbuzz_s3(1) == "1"       )
+stopifnot( fizzbuzz_s3(3) == "Fizz"    )
+stopifnot( fizzbuzz_s3(5) == "Buzz"    )
+stopifnot( fizzbuzz_s3(15) == "FizzBuzz")
+
+stopifnot(all( fizzbuzz_s3(1:5) == c("1", "2", "Fizz", "4", "Buzz") ))
+
+stopifnot(all( fizzbuzz_s3(9:15) == c("Fizz", "Buzz", "11", "Fizz", "13", "14", "FizzBuzz") ))
+stopifnot(all( fizzbuzz_s3(15:9) == c("FizzBuzz", "14", "13", "Fizz", "11", "Buzz", "Fizz") ))
+
+#New test case for valid input
+stopifnot(all( fizzbuzz_s3(5:12) == c("Buzz", "Fizz", "7", "8", "Fizz", "Buzz", "11", "Fizz")))
+```
+
+
+#### Bad Inputs
+
+```{r bad_inputs_s3, error = TRUE}
+stopifnot(throws_error( fizzbuzz_s3(-1) ))
+stopifnot(throws_error( fizzbuzz_s3(-3) ))
+stopifnot(throws_error( fizzbuzz_s3(-5) ))
+
+stopifnot(throws_error( fizzbuzz_s3(TRUE) ))
+stopifnot(throws_error( fizzbuzz_s3(FALSE) ))
+
+stopifnot(throws_error( fizzbuzz_s3(Inf) ))
+stopifnot(throws_error( fizzbuzz_s3(-Inf) ))
+stopifnot(throws_error( fizzbuzz_s3(NaN) ))
+
+stopifnot(throws_error( fizzbuzz_s3("A") ))
+stopifnot(throws_error( fizzbuzz_s3(1.5) ))
+stopifnot(throws_error( fizzbuzz_s3(1i) ))
+stopifnot(throws_error( fizzbuzz_s3(4i) ))
+
+stopifnot(throws_error( fizzbuzz_s3(-3i))) #New test case for complex number
+stopifnot(throws_error( fizzbuzz_s3(c())))  #New test case for empty input
+```
+

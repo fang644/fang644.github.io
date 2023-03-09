@@ -1,0 +1,129 @@
+---
+title: "Sta 523 - Fall 2022 - Midterm 2"
+subtitle: "Due Friday, December 9th by 5:00 pm."
+author: Your name here
+format: 
+  html:
+    self-contained: true
+---
+
+Before you start be sure to read through *all* of the rules and instructions in the `README.md`.
+
+
+<br/>
+
+### Setup
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(httr)
+library(jsonlite)
+library(dplyr)
+library(rvest)
+library(R.utils)
+```
+
+-----
+
+### Task 1 - Understanding the NY Times Article Search API
+
+
+```
+https://api.nytimes.com/svc/search/v2/articlesearch.json?fq=pub_date:(2018-03-08) AND document_type:("article") AND print_page:(1) AND print_section:("A")&api-key=GVPdUeXFUspM7NFiuMcl3S8R7Vzz28VG
+```
+
+
+# My birthday is March 8th and I enrolled in college in 2018.
+* `pub_date=2018-03-08`
+
+# Filter the document type to be article
+* `document_type="article"`
+
+# Filter the documents from the front page of the paper
+* `print_page=1`
+* `print_section="A"`
+
+-----   
+
+### Task 2 - Getting data from the API
+
+```{r}
+get_nyt_articles = function(year, month, day, api_key) {
+  
+  # Test if the input is valid
+  # year, month, and day should be numeric
+  if(is.numeric(year)==FALSE||is.numeric(month)==FALSE||is.numeric(day)==FALSE){
+    warning("Please enter a number for year, month, and day.")
+  }
+  
+  # they should all have length of 1
+  else if(length(year)!=1||length(month)!=1||length(day)!=1||length(api_key)!=1){
+    warning("Please enter year, month, day that is of length 1.")
+  }
+  
+  # day and month should be in the range
+  else if(day<1||day>31||month<1||month>12){
+    warning("Please enter month and day that have valid values.")
+  }
+  
+  page = 0
+  res = list()
+  
+  # Paste the inputs into the Search API
+  url = str_glue('https://api.nytimes.com/svc/search/v2/articlesearch.json?fq=pub_date:({year}-{month}-{day})ANDdocument_type:("article")ANDprint_page:(1)ANDprint_section:("A")&page={page}&api-key={api_key}', year = year, month = month, day = day, page = page, api_key = api_key)
+  print(url)
+  # Get the contents by `GET()` and `pluck()`. Retrieve the total number of results using hits.
+  # Reference: https://themockup.blog/posts/2020-05-22-parsing-json-in-r-with-jsonlite/
+  link_contents = GET(url) %>% content()
+  hits = pluck(link_contents, "response", "meta", "hits")
+  contents = pluck(link_contents, "response", "docs")
+  
+  if(hits == 0){
+    print("There is no article meeting all the criteria")
+  }
+  
+  # Use repeat loop to make multiple requests depending on the length of results
+  if(hits > 10){
+    repeat{
+      page = page + 1
+      url = str_glue('https://api.nytimes.com/svc/search/v2/articlesearch.json?fq=pub_date:({year}-{month}-{day})ANDdocument_type:("article")ANDprint_page:(1)ANDprint_section:("A")&page={page}&api-key={api_key}', year = year, month = month, day = day, page = page, api_key = api_key)
+      link_contents = GET(url) %>% content()
+      contents = pluck(link_contents, "response", "docs")
+      res = c(res, contents)
+      
+      # Set the request to be timed 6 seconds so I won't exceed the limit
+      Sys.sleep(6)
+      
+      if(length(contents)!=10)
+        break
+      }
+  }
+  
+  # Transform the data into a tidy tibble
+  tb = as_tibble(list(v=list(res))) %>% 
+    unnest_longer(v) %>% unnest_wider(v) %>% 
+    unnest_longer(headline) %>% 
+    unnest_longer(byline) %>% 
+    filter(headline_id == "main" & byline_id == "original") %>% 
+    select(headline, byline, web_url, lead_paragraph, source)
+  
+  print(tb)
+  return(tb)
+}
+```
+
+
+```{r}
+# Show sample output for your function
+get_nyt_articles(2018, 3, 8, "GVPdUeXFUspM7NFiuMcl3S8R7Vzz28VG")
+```
+
+First, I use if statements to check if the inputs are valid. Then, I first retrieve the articles on the 1st page to see how many results I got back. If there are more than 10 results, I then use the page parameter to retrieve the articles in other pages until I got all articles. I then transform the lists of articles into tibble and print out the tidy data.
+
+-----
+
+### Task 3 - Shiny Front End
+
+<!-- Shint App should be implemented in midterm2.R -->
+
+<!-- Include your brief write up here -->

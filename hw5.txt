@@ -1,0 +1,70 @@
+---
+title: "Homework 5 - Building a Shiny Dashboard"
+format: html
+author:
+- Bi, Yuchen
+- Fang, Ruisi
+- Jiang, Zhiyuan
+- Yang, Jerry
+execute: 
+  echo: true
+server: shiny
+---
+
+
+## Task 1
+
+All code are in hw5.R script file
+
+After we create db connection, we create lists of departments and classes from the tbl files and merge two table together by joining in assignment table by grade table. Thus, we have one table file of student's grades of each assignment of each class of each apartment. 
+
+In our shinny app (named "Gradebook"), we create input panels of department and class with nothing showing up as default. When we select a specific department, the class input will be filtered to the classes corresponding to the selected department. If the input of department is "all departments", then every element from the class list will be shown in class input panel. The output of the selection input panel is a table of student gradebook of each class, arranged by student names. Empty grade will be marked by "NA" in lightblue color. There will also be a table to show the mean, min, and max of each assignment. 
+
+## Task 2
+
+Under the department and class selection input, there is a checkbox for entering the weight with default of unchecked. Once the box is checked, user can enter the weight for each assignment in the range of 0 to 1 with a increment of 0.01. If the weight of individual assignment is not in the range of 0 to 1 or the total weight of the assignments of the class is not 1 or the same types of assignments are not given the same weight, a warning of corresponding error will be given. After weights are given and tests of weight input are passed, a new table with department, class, student name, and sum of weighted score of each assignment in each class (final score) of corresponding student will be output. Empty grade ("NA") will be considered as 0 during calculation. Letter grade will be decided based on the quantile of final scores of each class.  
+
+## Task 3
+
+We add one additional button, update score button.  When users click update score button, they can choose the assignment and students' name, and type new grade to replace original grade, then they click update button to update score or dismiss score button to dismiss their operations
+For bonus question, we add another function which allows user to add new students' name and score. We add an insert score button. When users click insert score button, they can type new students' name, choose assignment and type score.
+To achieve such function, we firstly compute the correction table. We store all updated information to correction table by using update and insert function in SQLite, then we anti-join with original gradebook table to get the final table.
+
+## Shiny App
+
+<!-- 
+you only need to include your final app version below.
+-->
+
+```{r,warning=FALSE}
+#| context: setup
+#| message: false
+
+# Include all setup code here - including creating db connection and any initial queries.
+
+(db =  DBI::dbConnect(RSQLite::SQLite(), "data/gradebook.sqlite"))
+grade_tbl =  dplyr::tbl(db, "gradebook")
+assignment_tbl = dplyr::tbl(db, "assignments")
+```
+
+
+
+
+```{r ui}
+# Include all of your shiny UI code here (i.e. what would have gone in ui = list())
+
+```
+
+
+
+```{r server}
+#| context: server
+
+# Include all of your shiny server code here (i.e. what would have gone in
+# server = function(input, output, session) {})
+
+```
+
+```{r ref.label="server", eval=FALSE}
+# Included so server code is shown in document - do not modify or remove
+```

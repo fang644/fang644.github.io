@@ -1,0 +1,148 @@
+Homework 3 - Tidy Tuesday & TV's Golden Age
+========================================================
+
+```{r setup, message=FALSE}
+library(tidyverse)
+tv = readr::read_csv("data/IMDb_Economist_tv_ratings.csv")
+```
+
+### Task 1 - Goals
+
+People enjoy watching dramas, but there are many sub types. Here, we are interested to know which sub type of drama in particular is the most popular and best rated, and see whether there exists any changes or progressions over time. We are also curious about whether the TVs in a sub type of drama receive similar ratings to see if there is any within group difference.
+
+After summarizing the data, we noticed that there are usually multiple genres for one TV series and many of them overlap. For example, "Action" often comes with "Crime". Thus, we selected 4 representative genres: Action, Comedy, Horror, Romance. 
+
+For popularity, sum of shares of each sub type in each year could be a good indicator as shares represent the percentages of people who rated or watched the drama in that year. For rating, the column "av_rating" is used to identify the best rated sub type. When examining the progressions of ratings over time, we noticed that we do not have many TV shows in one sub type in some years, and grouping by years to compare ratings could be misleading as one show with extreme rating could significantly affect the result. Hence, we group by decades to compare ratings, while we still group by years to compare sum of shares.
+
+To conclude, We want to use data visualization to:
+
+1. understand the overall trend of different ratings and shares for each genre across decades; 
+
+2. identify the distribution of ratings for each genre to check within group difference; and 
+
+3. compare the sum of shares owned by each genre across years.
+
+```{r}
+# data manipulation - add year/decades columns & separate by genres
+tvg = tv %>%
+  # get all the genres
+  mutate(genres = strsplit(as.character(genres), ",")) %>%
+  unnest(genres) %>%
+  # get year index
+  mutate(year = as.numeric(format(date, "%Y"))) %>%
+  # decade index
+  mutate(decade = case_when(year < 2000 ~ "1990s", year < 2010 ~ "2000s", year >= 2010 ~ "2010s")) %>%
+  filter(genres == "Action" | genres == "Comedy" | genres == "Horror" | genres == "Romance")
+```
+
+### Task 2 - Visuals
+
+```{r}
+# use mean rating (so that to make use of the info in all the datapoints) & sum share
+# check overall trend
+tvg %>%
+  group_by(decade, genres) %>%
+  summarize(mean_rating = mean(av_rating), sum_share = sum(share), count = n(), .groups = "drop") %>%
+  ggplot(aes(decade, med_rating)) +
+  geom_point(aes(decade, sum_share, size = mean_rating, color = genres), alpha = 0.5) +
+  theme_minimal() +
+  labs(
+    x = "Decades",
+    y = "Sum of Shares",
+    color = "Genre",
+    size = "Mean Rating (0 - 10)",
+    title = "Change of Shares and Ratings Across Decades for Genre",
+    caption = "Graph 1"
+  )
+```
+
+```{r}
+# density plot of rating, group by genres - check within group difference
+tvg %>%
+  ggplot(aes(x = av_rating, fill = genres)) +
+  geom_density(adjust = 2, alpha = 0.25) + xlim(5, 10) +
+  theme_minimal() +
+  labs(
+    x = "Rating",
+    y = "Density",
+    title = "The Distribution of the Ratings for Genre",
+    fill = "Genre",
+    caption = "Graph 2"
+  )
+```
+
+
+
+```{r}
+# Rating vs Genres (not grouped by years; makes sense since we could have multiple shows in the same year but have drastically different ratings)
+ggplot(tvg, aes(y = av_rating, x = genres)) + 
+  geom_boxplot() +
+  theme_minimal() +
+  labs(
+    x = "Genre", 
+    y = "Rating",
+    title = "Boxplot of Ratings Group by Genre ",
+    caption = "Graph 3"
+  )
+```
+
+
+```{r}
+# Share vs Genres (group by year)
+tvg %>%
+  group_by(year, genres) %>%
+  summarize(sum_share = sum(share), .groups = "drop") %>%
+  ggplot(aes(y = sum_share, x = year, color = genres)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  labs(
+    x = "Year",
+    y = "Sum of Shares",
+    color = "Genre",
+    title = "Change of Sum of Shares Over Year for Genre",
+    caption = "Graph 4"
+  )
+```
+
+### Task 3 - Designs
+
+For goal 1, here we would like to gather a overall pictures that capture all the main characteristics. It makes sense to use x-axis as time (decades here) as we wish to understand the trend and the change over time. Four genres are separated using different colors. Y-axis is used to capture the information of sum of squares while 'size' is used for mean rating. There are two reasons for this choice: the first is that intuitively, we would evaluate popularity and then ratings; the second is that if we plot using the other way round, the distinguish between sum of squares using 'size' is not as clear as capturing ratings using 'size'.
+
+For goal 2, we use the density plot and the box plot combined to get the result. The density plot is used to provide us with some ideas about the overall distribution while the box plot is supplemented to identify extreme ratings.
+
+To elaborate, to compare the distribution of average ratings between genres, the function `geom_density` were chosen to illustrate the distribution and group the color by genres so it is easier to distinguish between them. We also trim the graph and dropped average ratings < 5 because the distribution are all right skewed and it is easier to see the difference between genres.
+
+For goal 3, we use 'geom_line()', the line chart to see the change of sum of squares over time (year here as x-axis). Genres are grouped by colors and we could compare their values quite easily using this visualization.
+
+Observations:
+
+1. From graph 1, we could observe that:
+
+i. The gap between shares of each genre are closing, and the share of horror genre exceeds that of romance and comedy over time.
+
+ii. Most people watch action shows, and these shows have been better received as time progress.
+
+iii. The portions of people that watch comedy are gradually decreasing, while the portion of people that watch romance remain stable. Their ratings are constant over time.
+
+iv. More people are watching horror genre as time progress and it has been better received.
+
+2. From graph 2 & 3, we could observe that:
+
+i. Variance of rating for comedy is the smallest, followed by action and romance with similar variance, while horror has the largest variance.
+
+ii. Although horror has the largest variance, it does not contain "outliers" that deviate from the most ratings in horror genre, which is not the case for the other three genres, each with around 10 ratings as "seemingly outliers". One interesting point to note is that only comedy genre has "seemingly outliers" for high ratings, and this could indicate that people are more inclined to give extreme ratings for comedy, either high or low. And for romance and action, people tend to give extremely low ratings and never give extremely high ratings.
+
+3. From graph 4, we could observe that:
+
+i. Action genre is usually the most popular and lead by a huge margin in 1990s and early 2000s.
+
+ii. Comedy was the most favored in early 1990s but its popularity has dropped after and came second in 2000s. 
+
+iii. Consistent with the observation found in graph 1, horror genre has been increasing more popular over years and ranked the second most popular since year 2013, overtaking comedy.
+
+iv. The popularity for romance remains lower and is relatively stable.
+
+
+
+

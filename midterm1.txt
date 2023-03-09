@@ -1,0 +1,238 @@
+---
+title: "Sta 523 - Fall 2022 - Midterm 1"
+subtitle: "Due Wednesday, October 19th by 5:00 pm."
+author: Ruisi Fang
+format: 
+  html:
+    self-contained: true
+---
+
+Before you start be sure to read through *all* of the rules and instructions in the `README.md`.
+
+<br/>
+
+### Data & Setup
+
+```{r message=FALSE}
+library(tidyverse)
+library(dplyr)
+library(patchwork)
+f1 = readRDS(file="data/f1.rds")
+```
+
+-----
+
+### Task 1 - Tidy the data
+
+#### Write up
+
+To convert the data into tidy data, I followed several steps:  
+
+1). After scanning the structure of the data, I found the list named 'Races' is the one I need for the task, so I extracted the Races list as a tibble. 
+
+2). Since there are multiple layers of lists in Races, I used `hoist()` and `unnest_longer()` to only expand specific columns that I need.
+
+3). I created a new column named 'driver' indicating the full name of driver, and replaced the position of drivers who didn't finish the race with 'NA' according to the value of 'positionText'. Then, I changed the naming of two columns to 'race_name' and 'constructor' to be consistent with the question. Then, I validated the types of columns 'round', 'date', 'position', and the value of 'round' within the specified range.
+
+4). I selected the columns needed for further analysis and displayed the first 10 rows.
+
+#### Code
+
+```{r task1}
+# 1). Get the races data as a tibble from the original list
+Races = tibble(Race = f1$MRData$RaceTable$Races)
+
+# 2). Convert the data into tidy data frame
+Races = Races %>% 
+  hoist(Race, "raceName", "round", "date", "Results") %>%
+  unnest_longer(Results) %>%
+  hoist(
+    Results, 
+    first_name = list("Driver", 5), 
+    last_name = list("Driver", 6), 
+    Constructor = list("Constructor", 3), "position", "positionText", "points"
+  )
+
+# 3). Correct the naming and types of columns, validate the value, and construct a variable named `driver` indicating the full name of the driver.
+Races = Races %>%
+  mutate(
+    driver = paste(first_name, " ", last_name),
+    position = as.numeric(positionText)
+  ) %>%
+  rename(
+    race_name = raceName, constructor = Constructor
+  ) %>%
+  mutate(
+    round = as.integer(round), 
+    date = as.Date(date), 
+    position = as.integer(position), 
+    points = as.integer(points)
+  ) %>%
+  filter(
+    round >= 1 && round <= 22
+  )
+
+# 4). Select the columns needed for further analysis and print out the first 10 rows.
+Races = Races %>% 
+  select(race_name, round, date, driver, constructor, position, points)
+
+head(Races, 10)
+```
+
+-----
+
+
+### Task 2 - Drivers' Championship
+
+#### Write up
+
+To construct the table, I followed several steps:  
+
+1). I truncated the names of the races into locations and dropped the "Grand Prix" part. Then, I ordered the rows in a chronological order of the races. After selecting the columns I need, I used `pivot_wider()` to transform the table into rows being driver, columns being races, and values being positions. 
+
+2). I calculated the total points earned by each driver in a separate data frame.
+
+3). I appended the column of total points to the end of the table I constructed in 1).
+
+4). I printed out the entire table using `kable()`
+
+#### Code
+
+```{r task2}
+# 1). Truncate the race names into locations, select the columns I need, then expand wider.
+# Code credit to: https://tidyr.tidyverse.org/articles/pivot.html#wider
+Races_2 = Races %>%
+  mutate(race_name = substr(race_name, 1, nchar(race_name)-11)) %>%
+  arrange(date) %>%
+  select(race_name, driver, position) %>%
+  pivot_wider(
+    names_from = race_name,
+    values_from = position
+  ) %>%
+  arrange(driver)
+
+# 2). Calculate the total points by rows/drivers.
+total_points = Races %>%
+  group_by(driver) %>%
+  summarize(total_points = sum(points, na.rm = TRUE)) %>%
+  arrange(driver)
+
+# 3). Append the total points to the last column
+Races_2$total_points = total_points$total_points
+Races_2 = Races_2 %>% arrange(desc(total_points))
+
+# 4). Print the entire table
+# Code credit to: https://stackoverflow.com/questions/44500249/how-do-i-convert-a-tibble-to-html-table-in-r-tidyverse
+knitr::kable(Races_2)
+```
+-----
+
+### Task 3 - Cumulative Constructors
+
+#### Write up
+
+To get the cumulative points table, I followed several steps:  
+
+1). I first truncated the names of races and arrange the races by date. Then, I calculated the points earned by each constructor at each race while keeping the chronological order of the race. Here I used the function `distinct()` to avoid counting each constructor twice because there are two drivers per constructor and I was using `mutate()`. After that, I calculated the cumulative points earned by each constructor during the whole season using `cumsum()`. Then, I select the columns needed for the table and convert the table to wide data.
+
+2). Since the column names are directly from the race names and contains spaces, I used `gsub` to replace all the spaces " " with underscores "_". After the column names have been validated, I then proceeded to order the table by the total points at the end of season, which is the value of last column "Abu Dhabi".
+
+3). I used the same function as in Task 2 to print the whole table.
+
+#### Code
+
+```{r task3}
+# 1). Truncate the names of races and arrange the races by date. 
+Races_3 = Races %>%
+  mutate(race_name = substr(race_name, 1, nchar(race_name)-11)) %>%
+  
+  # Arrange by chronological order
+  arrange(date) %>%
+  
+  # Calculate the points earned per constructor per race while keeping the chronological order of the race.
+  group_by(race_name, constructor) %>%
+  mutate(date_points = sum(points)) %>%
+  distinct(race_name, constructor, date_points) %>%
+  ungroup() %>%
+  
+  # Calculate the cumulative points earned per constructor in the season.
+  group_by(constructor) %>%
+  mutate(cumulative_points = cumsum(date_points)) %>%
+  arrange(constructor) %>%
+  
+  # Select the columns needed and convert the table from long to wide data.
+  select(race_name, constructor, cumulative_points) %>%
+  pivot_wider(
+    names_from = race_name,
+    values_from = cumulative_points
+  ) 
+
+# 2). Validate the column names by replacing spaces with underscores, then arrange by the cumulative points at the end of season. Code credit to: https://stackoverflow.com/questions/10688137/how-to-fix-spaces-in-column-names-of-a-data-frame-remove-spaces-inject-dots
+names(Races_3) <- gsub(" ", "_", names(Races_3))
+Races_3 = Races_3 %>%
+  arrange(desc(Abu_Dhabi))
+
+# 3). Print the entire table
+# Code credit to: https://stackoverflow.com/questions/44500249/how-do-i-convert-a-tibble-to-html-table-in-r-tidyverse
+knitr::kable(Races_3)
+```
+
+### Task 4 - Visualization
+
+#### Write up
+
+First, I want to show the performance of each teams in general in the season, then I would break down the teams into the drivers in each team to evaluate the performance of each driver.
+
+In the first graph, I want to show the teams' performance. I let the teams be the y-axis and points be the x-axis so it's easier to read the names of teams. The bars are colored based on the teams. Since I ranked the bars in descending order based on the total points earned using `fct_reorder()` function, we can observe that the best performing team is Mercedes with 600+ points earned in total. Red Bull is a few points behind, a little below 600, and is ranked as the second. Other teams are mostly less than half of the points of Mercedes, and Haas F1 team earned no points at all.
+
+In the second graph, I want to break down the teams' performance into each driver's. I let drivers be the y-axis and points be the x-axis so it's easier to read the names of drivers. The bars are also colored based on the teams that driver are in and I borrowed code to make the bars from the same team next to each other so it's clean. I also ranked the bars in descending order based on the points earned, so we can observe that Max Verstappen from the Red Bull team is the best performing driver in the season, and Lewis Hamilton from the Mercedes team is only a few points behind and is ranked as the second. We can also notice that Mercedes and Red Bull have the 4 best performing drivers in the season, which makes sense because they are the top 2 teams. There are several drivers who didn't earn any points in the season, both drivers in Haas F1 team and one driver from Alfa Romeo team.
+
+Thus, in general, the best performing team is Mercedes and the best performing driver is Max Verstappen from the Red Bull team. The ranking of the rest is shown on the graphs.
+
+#### Code
+
+```{r task4}
+
+# 1st graph uses `geom_bar()` to show the points earned by each team
+# `fct_reorder()` function credit to: https://blog.albertkuo.me/post/2022-01-04-reordering-geom-col-and-geom-bar-by-count-or-value/
+p1 = Races_3 %>%
+  ggplot(aes(x = Abu_Dhabi, y = fct_reorder(constructor, Abu_Dhabi), fill = constructor)) +
+  geom_bar(stat = "identity") +
+  theme_bw() +
+  theme(axis.title = element_text(size = 14, face = "bold"), axis.text = element_text(size = 12)) +
+  labs(
+    title = "Team Performances in 2021 F1 season",
+    x = "Points earned",
+    y = "Team",
+    fill = "Team"
+  )
+
+# 2nd graph uses `geom_bar()` to show the points earned by each driver
+# 1). Add the column of constructor to Races_2 
+driver_constructor = Races %>%
+  group_by(driver, constructor) %>%
+  mutate(total_points = sum(points)) %>%
+  distinct(constructor, total_points) %>%
+  arrange(desc(total_points))
+
+Races_2$constructor = driver_constructor$constructor
+
+# 2). Plot the graph with appropriate function and labels.
+p2 = Races_2 %>%
+  ggplot(aes(x = total_points, y = fct_reorder(driver, total_points), fill = constructor)) +
+  geom_bar(stat = "identity") +
+  theme_bw() +
+  theme(axis.title = element_text(size = 14,face = "bold"), axis.text = element_text(size = 12)) +
+  labs(
+    title = "Performance of drivers in 2021 F1 season",
+    x = "Points earned",
+    y = "Driver",
+    fill = "Team"
+  )
+
+p1/p2
+
+```
+
+-----
+
